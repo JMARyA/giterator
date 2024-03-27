@@ -15,6 +15,7 @@ struct IterationOutput {
     commit: Commit,
     stdout: String,
     stderr: String,
+    status: i32,
 }
 
 impl IterationOutput {
@@ -23,15 +24,21 @@ impl IterationOutput {
             commit,
             stdout: String::from_utf8(out.stdout).unwrap(),
             stderr: String::from_utf8(out.stderr).unwrap(),
+            status: out.status.code().unwrap(),
         }
     }
 
     fn print_text(&self) {
         println!(
-            "Commit [{}] ({}): {}",
+            "Commit [{}] ({}): {} {}",
             Color::Green.paint(&self.commit.hash),
             Color::Purple.paint(&self.commit.datetime),
-            Color::Blue.paint(&self.commit.name)
+            Color::Blue.paint(&self.commit.name),
+            if self.status == 0 {
+                Color::Red.paint(String::new())
+            } else {
+                Color::Red.paint(format!("(Command failed with {})", self.status))
+            }
         );
         println!("{}", self.stdout);
         if !self.stderr.is_empty() {
@@ -46,20 +53,22 @@ impl IterationOutput {
             "datetime": self.commit.datetime,
             "name": self.commit.datetime,
             "stdout": self.stdout,
-            "stderr": self.stderr
+            "stderr": self.stderr,
+            "status": self.status
         })
     }
 
     fn as_csv(&self) -> Vec<String> {
         vec![
-            self.commit.hash.clone(),
-            self.commit.datetime.clone(),
-            self.commit.name.clone(),
             std::fs::canonicalize(self.commit.repo.clone())
                 .unwrap()
                 .to_str()
                 .unwrap()
                 .to_string(),
+            self.commit.hash.clone(),
+            self.commit.datetime.clone(),
+            self.commit.name.clone(),
+            self.status.to_string(),
             self.stdout.replace('\n', "\\n"),
             self.stderr.replace('\n', "\\n"),
         ]
@@ -69,9 +78,12 @@ impl IterationOutput {
 impl Commit {
     pub fn run_command(&self, command: &str) -> IterationOutput {
         checkout(&self.repo, &self.hash).unwrap();
-        // todo : expose env vars
         let out = Command::new("sh")
             .current_dir(&self.repo)
+            .env("GIT_REPO", &self.repo)
+            .env("COMMIT_HASH", &self.hash)
+            .env("COMMIT_DATETIME", &self.datetime)
+            .env("COMMIT", &self.name)
             .arg("-c")
             .arg(command)
             .output()
@@ -194,8 +206,10 @@ fn main() {
                 let csv: Vec<Vec<String>> = out.into_iter().map(|x| x.as_csv()).collect();
                 let mut wtr = csv::Writer::from_writer(std::io::stdout());
 
-                wtr.write_record(["hash", "datetime", "name", "repo", "stdout", "stderr"])
-                    .unwrap();
+                wtr.write_record([
+                    "repo", "hash", "datetime", "name", "status", "stdout", "stderr",
+                ])
+                .unwrap();
 
                 for record in csv {
                     wtr.write_record(&record).unwrap();
