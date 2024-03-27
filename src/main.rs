@@ -1,4 +1,6 @@
 use std::process::{Command, Output};
+
+use ansi_term::Color;
 mod args;
 
 #[derive(Debug, Clone)]
@@ -27,7 +29,9 @@ impl IterationOutput {
     fn print_text(&self) {
         println!(
             "Commit [{}] ({}): {}",
-            self.commit.hash, self.commit.datetime, self.commit.name
+            Color::Green.paint(&self.commit.hash),
+            Color::Purple.paint(&self.commit.datetime),
+            Color::Blue.paint(&self.commit.name)
         );
         println!("{}", self.stdout);
         if !self.stderr.is_empty() {
@@ -169,7 +173,6 @@ fn main() {
     if is_repository_clean(repo) || allow_dirty {
         let commits = get_commit_list(repo).unwrap();
         for commit in commits {
-            // todo : add colors
             out.push(commit.run_command(&command));
         }
         checkout(repo, "main").unwrap();
