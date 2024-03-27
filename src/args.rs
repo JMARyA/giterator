@@ -34,6 +34,13 @@ pub fn get_args() -> ArgMatches {
                 .required(false),
         )
         .arg(
+            clap::Arg::new("streaming")
+                .long("streaming")
+                .help("Output results as soon as they are available")
+                .num_args(0)
+                .required(false),
+        )
+        .arg(
             clap::Arg::new("csv")
                 .short('c')
                 .long("csv")

@@ -1,9 +1,14 @@
 [package]
 name = "giterator"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["JMARyA <jmarya@hydrar.de>"]
+description = "A versatile command-line tool for iterating over Git commit histories."
+license = "MIT"
+repository = "https://git.hydrar.de/jmarya/giterator"
+homepage = "https://git.hydrar.de/jmarya/giterator"
+documentation = "https://git.hydrar.de/jmarya/giterator/blob/main/README.md"
+keywords = ["git", "iteration", "command-line", "tool"]
 
 [dependencies]
 ansi_term = "0.12.1"

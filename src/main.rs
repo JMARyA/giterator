@@ -171,6 +171,7 @@ impl OutMode {
 fn main() {
     let args = args::get_args();
 
+    let streaming = args.get_flag("streaming");
     let repo = args.get_one::<String>("repository").unwrap();
     let allow_dirty = args.get_flag("allow-dirty");
     let command = if args.get_flag("script_file") {
@@ -184,41 +185,65 @@ fn main() {
 
     if is_repository_clean(repo) || allow_dirty {
         let commits = get_commit_list(repo).unwrap();
+
+        if streaming && matches!(outmode, OutMode::Csv) {
+            let mut wtr = csv::Writer::from_writer(std::io::stdout());
+
+            wtr.write_record([
+                "repo", "hash", "datetime", "name", "status", "stdout", "stderr",
+            ])
+            .unwrap();
+        }
+
         for commit in commits {
-            out.push(commit.run_command(&command));
+            let commit_out = commit.run_command(&command);
+            if streaming {
+                match outmode {
+                    OutMode::Text => commit_out.print_text(),
+                    OutMode::Json => println!("{}", commit_out.as_json()),
+                    OutMode::Csv => {
+                        let mut wtr = csv::Writer::from_writer(std::io::stdout());
+                        wtr.write_record(&commit_out.as_csv()).unwrap();
+                        wtr.flush().unwrap();
+                    }
+                }
+            }
+            out.push(commit_out);
         }
         checkout(repo, "main").unwrap();
 
-        match outmode {
-            OutMode::Text => {
-                for i in out {
-                    i.print_text();
+        if !streaming {
+            match outmode {
+                OutMode::Text => {
+                    for i in out {
+                        i.print_text();
+                    }
                 }
-            }
-            OutMode::Json => {
-                let json: Vec<_> = out.into_iter().map(|x| x.as_json()).collect();
-                println!(
-                    "{}",
-                    serde_json::to_string(&serde_json::to_value(json).unwrap()).unwrap()
-                );
-            }
-            OutMode::Csv => {
-                let csv: Vec<Vec<String>> = out.into_iter().map(|x| x.as_csv()).collect();
-                let mut wtr = csv::Writer::from_writer(std::io::stdout());
-
-                wtr.write_record([
-                    "repo", "hash", "datetime", "name", "status", "stdout", "stderr",
-                ])
-                .unwrap();
-
-                for record in csv {
-                    wtr.write_record(&record).unwrap();
+                OutMode::Json => {
+                    let json: Vec<_> = out.into_iter().map(|x| x.as_json()).collect();
+                    println!(
+                        "{}",
+                        serde_json::to_string(&serde_json::to_value(json).unwrap()).unwrap()
+                    );
                 }
+                OutMode::Csv => {
+                    let csv: Vec<Vec<String>> = out.into_iter().map(|x| x.as_csv()).collect();
+                    let mut wtr = csv::Writer::from_writer(std::io::stdout());
 
-                wtr.flush().unwrap();
+                    wtr.write_record([
+                        "repo", "hash", "datetime", "name", "status", "stdout", "stderr",
+                    ])
+                    .unwrap();
+
+                    for record in csv {
+                        wtr.write_record(&record).unwrap();
+                    }
+
+                    wtr.flush().unwrap();
+                }
             }
         }
     } else {
-        eprintln!("Repository is not clean. If you want to allow operating over an unclean repository, pass the `--allow-dirty` flag.");
+        eprintln!("{}: Repository is not clean. If you want to allow operating over an unclean repository, pass the {} flag.", Color::Red.paint("Error"), Color::Blue.paint("`--allow-dirty`"));
     }
 }
